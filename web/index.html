@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Realtime Chat App</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; }
+      .row { display: flex; gap: 16px; }
+      .box { border: 1px solid #ddd; border-radius: 12px; padding: 14px; }
+      #chat { height: 420px; overflow: auto; white-space: pre-wrap; }
+      input, button { padding: 10px; }
+      .muted { color: #666; font-size: 13px; }
+      .pill { display: inline-block; padding: 4px 10px; border: 1px solid #ddd; border-radius: 999px; margin: 3px 4px 0 0; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h2>Realtime Chat App</h2>
+    <p class="muted">Enter a username + room, then open the connection. Messages are broadcast to everyone in the same room.</p>
+
+    <div class="row">
+      <div class="box" style="flex: 1;">
+        <div>
+          <label>Username</label><br/>
+          <input id="username" placeholder="ece" />
+        </div>
+        <div style="margin-top:10px;">
+          <label>Room</label><br/>
+          <input id="room" placeholder="aselsan-room" />
+        </div>
+        <div style="margin-top:12px;">
+          <button onclick="connect()">Connect</button>
+          <button onclick="disconnect()">Disconnect</button>
+        </div>
+
+        <hr/>
+
+        <div class="muted">Online users</div>
+        <div id="users"></div>
+      </div>
+
+      <div class="box" style="flex: 2;">
+        <div id="chat"></div>
+
+        <div style="margin-top:12px; display:flex; gap:10px;">
+          <input id="message" style="flex:1;" placeholder="Type a message..." onkeydown="if(event.key==='Enter'){sendMessage()}" />
+          <button onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let ws = null;
+
+      function log(line) {
+        const chat = document.getElementById("chat");
+        chat.textContent += line + "\n";
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      function renderUsers(users) {
+        const el = document.getElementById("users");
+        el.innerHTML = "";
+        (users || []).forEach(u => {
+          const d = document.createElement("span");
+          d.className = "pill";
+          d.textContent = u;
+          el.appendChild(d);
+        });
+      }
+
+      function connect() {
+        const username = document.getElementById("username").value.trim();
+        const room = document.getElementById("room").value.trim();
+        if(!username || !room) {
+          alert("Username and Room are required.");
+          return;
+        }
+
+        const proto = (location.protocol === "https:") ? "wss" : "ws";
+        const url = `${proto}://${location.host}/ws/${encodeURIComponent(room)}/${encodeURIComponent(username)}`;
+        ws = new WebSocket(url);
+
+        ws.onopen = () => log(`[system] connected as ${username} in room ${room}`);
+        ws.onmessage = (ev) => {
+          const data = JSON.parse(ev.data);
+          if (data.type === "system") {
+            log(`[system] ${data.message}`);
+          } else {
+            log(`[${data.username}] ${data.message}`);
+          }
+          renderUsers(data.users);
+        };
+        ws.onclose = () => log("[system] disconnected");
+      }
+
+      function disconnect() {
+        if (ws) ws.close();
+        ws = null;
+      }
+
+      function sendMessage() {
+        const input = document.getElementById("message");
+        const msg = input.value.trim();
+        if (!msg || !ws) return;
+        ws.send(JSON.stringify({ message: msg }));
+        input.value = "";
+      }
+    </script>
+  </body>
+</html>
